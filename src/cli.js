@@ -5,13 +5,14 @@ import { c, say } from './log.js';
 import { cfg, configure, osName, pickBackend } from './platform.js';
 import * as emulator from './backends/emulator.js';
 import * as redroid from './backends/redroid.js';
+import * as remote from './backends/remote.js';
 import clean from './commands/clean.js';
 import doctor from './commands/doctor.js';
 import screen from './commands/screen.js';
 import update from './commands/update.js';
 import { adbCmd, list, logs, setup, shellCmd, start, status, stop } from './commands/basic.js';
 
-const BACKENDS = { emulator, redroid };
+const BACKENDS = { emulator, redroid, remote };
 const pkg = JSON.parse(readFileSync(
   path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'package.json'), 'utf8'));
 
@@ -19,7 +20,7 @@ const pkg = JSON.parse(readFileSync(
 // `shell`/`adb`, because `android-lab shell --name foo ls` is what people
 // actually type. Everything after a bare `--` is passed through untouched, which
 // is the escape hatch when an inner command needs a flag we would otherwise eat.
-const FLAGS_WITH_VALUE = new Set(['backend', 'name', 'out']);
+const FLAGS_WITH_VALUE = new Set(['backend', 'name', 'out', 'host']);
 const BOOL_FLAGS = new Set(['window', 'shot', 'json', 'follow', 'all', 'remove', 'yes', 'y', 'checkOnly', 'help', 'version']);
 
 function parse(argv) {
@@ -68,6 +69,7 @@ const HELP = () => `
 
   ${c.bold('options')}
     --name <name>                  which device (default: apx-android)
+    --host <host[:port]>           drive a device on another machine over adb
     --backend <emulator|redroid>   force a backend (default: automatic)
     --json                          machine-readable output
     --yes                           no questions: assume yes (setup, clean)
@@ -80,6 +82,17 @@ const HELP = () => `
       android-lab setup --name pixel && android-lab start --name pixel
       android-lab shell --name pixel
       android-lab list
+
+  ${c.bold('another machine')}
+    A device running elsewhere is driven over adb's TCP transport. Nothing is
+    installed locally -- the SDK and the RAM stay on its host.
+
+      android-lab status --host 192.168.1.10:5555
+      android-lab shell  --host 192.168.1.10:5555
+
+    adb over TCP is unauthenticated, so keep it off untrusted networks: bind it
+    to Tailscale, or tunnel it with
+    ${c.dim('ssh -L 5555:localhost:5555 user@host')} and use ${c.dim('--host localhost:5555')}.
 
   ${c.bold('backends')}
     ${c.bold('emulator')}  Native Android Emulator. macOS, Linux and Windows.
@@ -107,7 +120,7 @@ export async function main(argv) {
   if (args.backend && !BACKENDS[args.backend]) {
     throw new Error(`unknown backend: ${args.backend}. Available: ${Object.keys(BACKENDS).join(', ')}`);
   }
-  configure({ name: args.name });
+  configure({ name: args.name, host: args.host });
   const be = BACKENDS[pickBackend(args.backend)];
 
   switch (cmd) {

@@ -40,6 +40,7 @@ export const paths = () => {
 // emulator and the container name for redroid.
 export const cfg = {
   name: process.env.ANDROID_LAB_NAME || 'apx-android',
+  host: process.env.ANDROID_LAB_HOST || null,
   api: process.env.ANDROID_API || '35',
   get systemImage() {
     return process.env.SYSTEM_IMAGE || `system-images;android-${this.api};google_apis;${ANDROID_ABI}`;
@@ -47,9 +48,10 @@ export const cfg = {
   redroidImage: process.env.REDROID_IMAGE || 'redroid/redroid:14.0.0-latest',
 };
 
-export function configure({ name, api } = {}) {
+export function configure({ name, api, host } = {}) {
   if (name) cfg.name = name;
   if (api) cfg.api = String(api);
+  if (host) cfg.host = host;
 }
 
 // On Windows binaries carry a suffix and the SDK wrappers are .bat files.
@@ -210,6 +212,8 @@ export function hasAccel() {
 // less, but it only exists where binder is real: Linux.
 export function pickBackend(forced) {
   if (forced) return forced;
+  // Naming a host is unambiguous: you mean the device over there, not one here.
+  if (cfg.host) return 'remote';
   if (process.env.ANDROID_LAB_BACKEND) return process.env.ANDROID_LAB_BACKEND;
   if (isLinux && hasDocker().ok && hasBinder().ok) return 'redroid';
   return 'emulator';

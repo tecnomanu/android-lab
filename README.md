@@ -106,16 +106,49 @@ own virtualisation and needs none of this.
 
 | System | Backend | Status |
 |---|---|---|
-| macOS Apple Silicon | `emulator` | **Verified on hardware** (M4, Android 15 arm64) |
-| macOS Intel | `emulator` | Same path, `x86_64` image. Untested |
-| Linux + KVM | `emulator` | Coded with runtime detection. Untested |
-| Linux + binder | `redroid` | Coded with runtime detection. Untested |
+| macOS Apple Silicon | `emulator` | **Verified on hardware** — M4, Android 15 arm64 |
+| Linux x86_64 + KVM | `emulator` | **Verified on hardware** — Ubuntu 24.04, Android 15 x86_64 |
+| Linux x86_64 + binder | `redroid` | **Verified on hardware** — Ubuntu 24.04, Android 14 |
+| macOS Intel | `emulator` | Same path as Apple Silicon, `x86_64` image. Untested |
 | Windows + WHPX | `emulator` | Coded with runtime detection. Untested |
 
-The only combination actually run on hardware is macOS/arm64 with the emulator.
-The rest detects its environment and fails with a specific message instead of
-breaking silently — but it has not been executed. On Linux or Windows, run
-`android-lab doctor` first: it tells you exactly what is missing.
+The three verified rows each pass the full [smoke test](test/smoke.sh) — every
+command against a real booted device, including persistence across a restart.
+
+Windows is the honest gap: the code detects WHPX and fails with a specific
+message rather than breaking silently, but nobody has run it. `android-lab
+doctor` is the first thing to try there, and issues are welcome.
+
+## Driving a device on another machine
+
+A device running elsewhere is driven over adb's TCP transport. Nothing is
+installed locally — the ~5 GB of SDK and the RAM stay on its host, which is the
+point: a laptop can drive an Android living on a server.
+
+```bash
+android-lab status --host 192.168.1.10:5555
+android-lab shell  --host 192.168.1.10:5555
+android-lab screen --shot --host 192.168.1.10:5555 --out /tmp/now.png
+```
+
+`setup`, `start` and `clean` refuse over `--host` and tell you to run them where
+the device lives — you cannot create a device on a machine you are only talking
+to. Everything that drives an existing one works.
+
+The `redroid` backend already publishes its port, so a container on a Linux box
+is reachable as soon as it is up. For the emulator, its console port is bound to
+localhost, so forward it:
+
+```bash
+ssh -L 5555:localhost:5554 user@host      # emulator console port on the host
+android-lab status --host localhost:5555
+```
+
+> **adb over TCP has no authentication.** Anyone who can reach the port owns the
+> device. Keep it on a private network — Tailscale, a VPN, or the SSH tunnel
+> above. Do not publish 5555 to the internet.
+
+## Docker
 
 ## Docker
 

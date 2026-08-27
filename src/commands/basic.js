@@ -42,7 +42,9 @@ export async function setup(be, args) {
 
 export async function start(be, args) {
   if (be.running()) {
-    ok(`"${cfg.name}" was already running (${be.serial()})`);
+    // Each backend names itself: a remote device is identified by its endpoint,
+    // not by the local default device name.
+    ok(`"${be.info().name}" was already running (${be.serial()})`);
   } else {
     await be.start({ window: args.window });
   }
