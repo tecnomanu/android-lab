@@ -7,6 +7,13 @@ and AI agents. One command to boot it, see it and poke at it.
 virtual Android  ->  ADB  ->  Movicom  ->  MCP / APX  ->  your agent
 ```
 
+**Built for [APX](https://github.com/agentprojectcontext/apx) and your super-agent.**
+Register it once as an MCP and your agent has a throwaway phone it can install
+on, tap through and break — without ever touching a real device. It works just
+as well from [Claude Code](https://claude.com/claude-code), Codex, OpenCode,
+Cursor or a plain shell; see **[AGENTS.md](AGENTS.md)** for the autonomous
+contract.
+
 ```bash
 npx android-lab doctor    # what can run on this machine
 npx android-lab setup     # install whatever is missing
@@ -16,19 +23,27 @@ npx android-lab screen    # see it and drive it with mouse and keyboard
 
 Or install it: `npm i -g android-lab`, then `android-lab start`.
 
+<table>
+<tr>
+<td width="62%" valign="top">
+
 ![android-lab doctor](docs/doctor.svg)
 
-`doctor` probes the host rather than guessing from the OS name, and says which
-backend it picked and why.
+</td>
+<td width="38%" valign="top" align="center">
 
-<img src="docs/device.png" alt="the virtual device" width="240" align="right">
+<img src="docs/device.webp" alt="the virtual device" width="200">
+
+</td>
+</tr>
+</table>
+
+`doctor` probes the host rather than guessing from the OS name, and says which
+backend it picked and why — including whether APX and Movicom are around.
 
 ![android-lab list](docs/list.svg)
 
 Run as many as your RAM allows; ports and serials are handed out automatically.
-
-<br clear="right">
-
 
 ## Commands
 

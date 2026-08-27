@@ -45,10 +45,15 @@ export default async function doctor() {
   info('java', java
     ? `${mark(true)} ${c.dim(java)}`
     : `${c.yellow('no')} ${c.dim(`setup needs a real JDK: ${installHint('java') || 'install a JDK 17+'}`)}`);
+  // Optional companions: neither is required, but both change what you can do
+  // with the device, so it is worth saying whether they are here.
   const movicom = process.env.MOVICOM_HOME
     || path.join(process.env.HOME || process.env.USERPROFILE || '', 'movicom');
   info('movicom', existsSync(path.join(movicom, 'movicom.js'))
-    ? `${mark(true)} ${c.dim(movicom)}` : c.dim('not installed (optional)'));
+    ? `${mark(true)} ${c.dim('semantic UI control')}` : c.dim('not installed (optional)'));
+  const apx = which(exe('apx'));
+  info('apx', apx
+    ? `${mark(true)} ${c.dim('agent orchestration')}` : c.dim('not installed (optional)'));
 
   say(c.bold('\n  backends\n'));
   const rows = [
