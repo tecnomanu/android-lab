@@ -44,6 +44,12 @@ const present = {
   adb: () => Boolean(which(exe('adb')) || existsSync(path.join(paths().sdk, 'platform-tools', exe('adb')))),
 };
 
+// True when a root command can run without asking anyone for a password.
+export function rootIsFree() {
+  if (typeof process.getuid === 'function' && process.getuid() === 0) return true;
+  return run('sudo', ['-n', 'true'], { timeout: 5000 }).ok;
+}
+
 // Returns the tools still missing after trying. Never throws: scrcpy is optional
 // and a failed install should not stop the setup.
 export async function ensureTools({ yes = false, want = ['java', 'scrcpy'] } = {}) {
@@ -60,8 +66,11 @@ export async function ensureTools({ yes = false, want = ['java', 'scrcpy'] } = {
     }
     const printable = recipe.cmd.join(' ');
 
-    if (recipe.root) {
-      // Needs root: print it, never run it unattended.
+    // Needs root. Running it is only acceptable when root is already granted --
+    // we are root, or sudo takes no password. Anywhere else it gets printed,
+    // because prompting for a password from inside a tool is how people end up
+    // typing secrets into things they did not mean to.
+    if (recipe.root && !rootIsFree()) {
       warn(`${tool} is missing. Install it with:\n    ${printable}`);
       stillMissing.push(tool);
       continue;
