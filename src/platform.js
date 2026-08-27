@@ -2,7 +2,7 @@
 // process.platform is not enough, because what decides whether a backend can run
 // is the kernel underneath (KVM, binder, Hypervisor.framework), not the OS name.
 import { execFileSync, execSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { accessSync, constants, existsSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 
@@ -175,9 +175,22 @@ export function hasBinder() {
 export function hasAccel() {
   if (isMac) return { ok: true, how: 'Hypervisor.framework' }; // present on every modern macOS
   if (isLinux) {
-    return existsSync('/dev/kvm')
-      ? { ok: true, how: '/dev/kvm' }
-      : { ok: false, why: 'no /dev/kvm (enable virtualisation in the BIOS and join the kvm group)' };
+    if (!existsSync('/dev/kvm')) {
+      return { ok: false, why: 'no /dev/kvm — enable virtualisation in the BIOS/UEFI' };
+    }
+    // Existing is not enough: /dev/kvm is root:kvm 0660, so a user outside the
+    // kvm group gets EACCES and the emulator silently falls back to software
+    // emulation, which looks like "it works but it is unusably slow".
+    try {
+      accessSync('/dev/kvm', constants.R_OK | constants.W_OK);
+      return { ok: true, how: '/dev/kvm' };
+    } catch {
+      return {
+        ok: false,
+        why: '/dev/kvm exists but is not readable by this user',
+        fix: ['sudo usermod -aG kvm $USER', '# then log out and back in (or: newgrp kvm)'],
+      };
+    }
   }
   if (isWin) {
     const r = run('powershell', ['-NoProfile', '-Command',

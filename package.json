@@ -1,6 +1,6 @@
 {
   "name": "android-lab",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Spin up a virtual Android you can drive from ADB, Movicom and AI agents. macOS, Linux and Windows.",
   "bin": {
     "android-lab": "bin/android-lab.js"

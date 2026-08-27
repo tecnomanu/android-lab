@@ -72,7 +72,10 @@ export default async function doctor() {
     info(b.name, st);
   }
 
-  if (!accel.ok && isLinux) say(`\n  ${c.yellow('fix KVM:')} sudo usermod -aG kvm $USER && newgrp kvm`);
+  if (!accel.ok && isLinux && accel.fix) {
+    say(`\n  ${c.yellow('fix KVM:')}`);
+    for (const cmd of accel.fix) say(`    ${c.dim(cmd)}`);
+  }
   if (!bind.ok && isLinux && bind.fix) {
     say(`  ${c.yellow('fix binder:')}`);
     for (const cmd of bind.fix) say(`    ${c.dim(cmd)}`);
