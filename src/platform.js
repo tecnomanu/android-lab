@@ -67,8 +67,13 @@ export function which(cmd) {
 
 export function run(cmd, args, opts = {}) {
   try {
+    // stdin has to be a pipe for `input` to reach the child. Leaving it as
+    // 'ignore' silently discards it, and a command waiting on a prompt just sees
+    // EOF -- which is how license prompts end up "declined" without anyone
+    // declining anything.
+    const stdin = opts.input !== undefined ? 'pipe' : 'ignore';
     const out = execFileSync(cmd, args, {
-      encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8', stdio: [stdin, 'pipe', 'pipe'],
       timeout: opts.timeout ?? 30000, ...opts,
     });
     // With encoding:'buffer' (screenshots) the output is binary and must not be

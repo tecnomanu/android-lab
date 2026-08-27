@@ -113,11 +113,13 @@ export async function setup({ log = step } = {}) {
 
   log('accepting SDK licences');
   run(clt, [`--sdk_root=${paths().sdk}`, '--licenses'],
-    { input: 'y\n'.repeat(30), env: env(), timeout: 120000 });
+    { input: 'y\n'.repeat(50), env: env(), timeout: 300000 });
 
   log(`downloading emulator + ${ANDROID_ABI} system image (~5 GB, takes a while)`);
+  // Still answering y: a package can carry its own licence that the blanket
+  // --licenses pass did not cover, and an unanswered prompt silently skips it.
   const dl = run(clt, [`--sdk_root=${paths().sdk}`, 'platform-tools', 'emulator', cfg.systemImage],
-    { env: env(), timeout: 3600000, stdio: ['ignore', 'inherit', 'inherit'] });
+    { input: 'y\n'.repeat(50), env: env(), timeout: 3600000, stdio: ['pipe', 'inherit', 'inherit'] });
   if (!dl.ok) throw new Error(`SDK download failed: ${dl.out?.slice(-400)}`);
 
   if (run(emuBin(), ['-list-avds'], { env: env() }).out.split(/\r?\n/).includes(cfg.name)) {
