@@ -1,0 +1,32 @@
+# redroid: Android in a container. NATIVE LINUX ONLY.
+#
+# The container shares the host kernel, so the host has to expose binder. Docker
+# Desktop on macOS and Windows runs a LinuxKit kernel built without
+# CONFIG_ANDROID_BINDER_IPC, which is why this cannot start there -- it is not a
+# permissions or flags problem, the whole subsystem is missing.
+#
+# Once per host boot:
+#   sudo modprobe binder_linux devices=binder,hwbinder,vndbinder
+#
+#   docker compose up -d
+#   adb connect localhost:5555
+#
+# The CLI does all of this for you:  android-lab start --backend redroid
+
+services:
+  android:
+    image: ${REDROID_IMAGE:-redroid/redroid:14.0.0-latest}
+    container_name: ${ANDROID_LAB_NAME:-apx-android}
+    privileged: true          # required for binder/ashmem
+    ports:
+      - "${REDROID_PORT:-5555}:5555"
+    volumes:
+      # Mounting /data on the host is what keeps apps and settings alive even if
+      # you delete and recreate the container.
+      - ${ANDROID_LAB_HOME:-~/.android-lab}/redroid-data/${ANDROID_LAB_NAME:-apx-android}:/data
+    command:
+      - androidboot.redroid_width=1080
+      - androidboot.redroid_height=1920
+      - androidboot.redroid_dpi=440
+      - androidboot.redroid_gpu_mode=guest
+    restart: unless-stopped

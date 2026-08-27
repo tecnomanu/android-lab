@@ -1,0 +1,30 @@
+#!/bin/sh
+# Bumps the patch version on every commit, so the published version always moves
+# forward without anyone remembering to do it: 0.2.0 -> 0.2.1 -> 0.2.2.
+#
+# Skipped when:
+#   - the commit already changes "version" by hand (a minor/major bump)
+#   - SKIP_VERSION_BUMP=1 is set (merges, CI, fixups)
+#
+# Enable it once per clone:  git config core.hooksPath .githooks
+set -e
+
+[ "$SKIP_VERSION_BUMP" = "1" ] && exit 0
+
+# A hand-written bump wins: do not bump twice in the same commit.
+if git diff --cached package.json 2>/dev/null | grep -qE '^\+.*"version"'; then
+  exit 0
+fi
+
+NEW=$(node -e '
+  const fs = require("fs");
+  const p = "package.json";
+  const pkg = JSON.parse(fs.readFileSync(p, "utf8"));
+  const [maj, min, patch] = pkg.version.split(".").map(Number);
+  pkg.version = [maj, min, patch + 1].join(".");
+  fs.writeFileSync(p, JSON.stringify(pkg, null, 2) + "\n");
+  process.stdout.write(pkg.version);
+')
+
+git add package.json
+echo "version -> $NEW"

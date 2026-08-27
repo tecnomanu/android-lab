@@ -1,0 +1,47 @@
+{
+  "name": "android-lab",
+  "version": "0.2.0",
+  "description": "Spin up a virtual Android you can drive from ADB, Movicom and AI agents. macOS, Linux and Windows.",
+  "bin": {
+    "android-lab": "bin/android-lab.js"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "src",
+    "docker",
+    "README.md",
+    "AGENTS.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "android",
+    "emulator",
+    "avd",
+    "adb",
+    "redroid",
+    "scrcpy",
+    "movicom",
+    "mcp",
+    "agents",
+    "automation"
+  ],
+  "author": "tecnomanu",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "node --test",
+    "postinstall-hooks": "git config core.hooksPath .githooks"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tecnomanu/android-lab.git"
+  },
+  "homepage": "https://github.com/tecnomanu/android-lab#readme",
+  "bugs": {
+    "url": "https://github.com/tecnomanu/android-lab/issues"
+  }
+}

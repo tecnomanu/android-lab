@@ -1,0 +1,10 @@
+# Downloaded/generated artifacts: recreated by `android-lab setup`
+sdk/
+avd/
+logs/
+state.json
+.DS_Store
+node_modules/
+
+# Local agent context, not part of the package
+.apc/
