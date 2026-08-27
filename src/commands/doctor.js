@@ -5,6 +5,7 @@ import path from 'node:path';
 import { c, info, say } from '../log.js';
 import * as emulator from '../backends/emulator.js';
 import * as redroid from '../backends/redroid.js';
+import { installHint } from './wizard.js';
 import {
   ANDROID_ABI, ARCH, exe, findJavaHome, hasAccel, hasBinder, hasDocker,
   isLinux, osName, paths, pickBackend, which,
@@ -36,12 +37,14 @@ export default async function doctor() {
   const adbPath = existsSync(ownAdb) ? ownAdb : which(exe('adb'));
   info('adb', adbPath ? `${mark(true)} ${c.dim(adbPath)}` : `${mark(false)} ${c.dim('missing: android-lab setup')}`);
   const scr = which(exe('scrcpy'));
-  info('scrcpy', scr ? `${mark(true)} ${c.dim(scr)}` : `${c.yellow('no')} ${c.dim('optional, needed to see the screen')}`);
+  info('scrcpy', scr
+    ? `${mark(true)} ${c.dim(scr)}`
+    : `${c.yellow('no')} ${c.dim(`optional, needed to see the screen: ${installHint('scrcpy') || 'install scrcpy'}`)}`);
   // Checked by running it: macOS ships a /usr/bin/java stub that exists but works.
   const java = findJavaHome();
   info('java', java
     ? `${mark(true)} ${c.dim(java)}`
-    : `${c.yellow('no')} ${c.dim('setup needs a real JDK (brew install openjdk@17)')}`);
+    : `${c.yellow('no')} ${c.dim(`setup needs a real JDK: ${installHint('java') || 'install a JDK 17+'}`)}`);
   const movicom = process.env.MOVICOM_HOME
     || path.join(process.env.HOME || process.env.USERPROFILE || '', 'movicom');
   info('movicom', existsSync(path.join(movicom, 'movicom.js'))

@@ -25,6 +25,12 @@ const RECIPES = {
   },
 };
 
+// The install command for this platform, so hints never tell a Linux user to run
+// brew. Returns null when we have no recipe for the host.
+export function installHint(tool) {
+  return RECIPES[tool]?.[osName]?.cmd.join(' ') ?? null;
+}
+
 const present = {
   java: () => Boolean(findJavaHome()),
   scrcpy: () => Boolean(which(exe('scrcpy'))),
