@@ -130,22 +130,46 @@ export function hasDocker() {
 // redroid needs binder in the HOST kernel. Docker Desktop (macOS/Windows) runs a
 // LinuxKit kernel built without CONFIG_ANDROID_BINDER_IPC, and that cannot be
 // added without replacing the VM's kernel.
+export const BINDER_FIX = [
+  'sudo modprobe binder_linux devices=binder,hwbinder,vndbinder',
+  'sudo mkdir -p /dev/binderfs && sudo mount -t binder binder /dev/binderfs',
+];
+
 export function hasBinder() {
   if (!isLinux) {
     return { ok: false, why: `the Docker Desktop kernel on ${osName} has no binder (CONFIG_ANDROID_BINDER_IPC)` };
   }
-  if (existsSync('/dev/binder') || existsSync('/dev/binderfs/binder')) return { ok: true, how: '/dev/binder' };
-  const r = run('modprobe', ['binder_linux', 'devices=binder,hwbinder,vndbinder']);
-  if (r.ok && (existsSync('/dev/binder') || existsSync('/dev/binderfs'))) {
-    return { ok: true, how: 'binder_linux module loaded' };
+  // Old-style device node, or binderfs already mounted.
+  if (existsSync('/dev/binder')) return { ok: true, how: '/dev/binder' };
+  if (existsSync('/dev/binderfs/binder')) return { ok: true, how: '/dev/binderfs' };
+
+  const moduleLoaded = () => {
+    const r = run('lsmod', []);
+    return r.ok && /^binder_linux/m.test(r.out);
+  };
+  const kernelKnowsBinderfs = () => {
+    try {
+      const f = `/boot/config-${execSync('uname -r', { encoding: 'utf8' }).trim()}`;
+      return existsSync(f) && /CONFIG_ANDROID_BINDERFS=[ym]/.test(readFileSync(f, 'utf8'));
+    } catch { return false; }
+  };
+
+  if (!moduleLoaded()) {
+    run('modprobe', ['binder_linux', 'devices=binder,hwbinder,vndbinder']); // needs root; harmless when it fails
+    if (existsSync('/dev/binder')) return { ok: true, how: 'binder_linux module loaded' };
   }
-  try {
-    const cfgFile = `/boot/config-${execSync('uname -r', { encoding: 'utf8' }).trim()}`;
-    if (existsSync(cfgFile) && /CONFIG_ANDROID_BINDERFS=[ym]/.test(readFileSync(cfgFile, 'utf8'))) {
-      return { ok: false, why: 'kernel supports binderfs but it is not mounted: try `sudo modprobe binder_linux devices=binder,hwbinder,vndbinder`' };
-    }
-  } catch { /* kernel config is not always readable */ }
-  return { ok: false, why: 'the kernel does not expose binder' };
+
+  // On binderfs kernels the module alone gives you nothing: the filesystem has to
+  // be mounted before any binder device exists. Loading it and stopping there is
+  // the usual dead end.
+  if (moduleLoaded() || kernelKnowsBinderfs()) {
+    return {
+      ok: false,
+      why: 'binder is available but binderfs is not mounted -- loading the module is not enough',
+      fix: moduleLoaded() ? BINDER_FIX.slice(1) : BINDER_FIX,
+    };
+  }
+  return { ok: false, why: 'the kernel does not expose binder', fix: BINDER_FIX };
 }
 
 export function hasAccel() {

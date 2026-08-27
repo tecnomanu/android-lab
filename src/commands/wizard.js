@@ -2,11 +2,12 @@
 //
 // Agents get the same code path with --yes: no questions, defaults everywhere,
 // and every missing tool either installed or reported with the exact command.
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { c, confirm, ok, say, step, warn } from '../log.js';
 import {
-  ANDROID_ABI, cfg, configure, exe, findJavaHome, hasAccel, isLinux, isMac, isWin,
-  osName, run, which,
+  ANDROID_ABI, cfg, exe, findJavaHome, hasAccel, osName, paths, run, which,
 } from '../platform.js';
 
 // What each tool is called for the package manager of each platform. Anything
@@ -23,6 +24,11 @@ const RECIPES = {
     Linux: { cmd: ['sudo', 'apt', 'install', '-y', 'scrcpy'], root: true },
     Windows: { cmd: ['winget', 'install', '-e', '--id', 'Genymobile.scrcpy'], root: false },
   },
+  adb: {
+    macOS: { cmd: ['brew', 'install', '--cask', 'android-platform-tools'], root: false },
+    Linux: { cmd: ['sudo', 'apt', 'install', '-y', 'adb'], root: true },
+    Windows: { cmd: ['winget', 'install', '-e', '--id', 'Google.PlatformTools'], root: false },
+  },
 };
 
 // The install command for this platform, so hints never tell a Linux user to run
@@ -34,6 +40,8 @@ export function installHint(tool) {
 const present = {
   java: () => Boolean(findJavaHome()),
   scrcpy: () => Boolean(which(exe('scrcpy'))),
+  // Either a system adb or the one the SDK download brings along.
+  adb: () => Boolean(which(exe('adb')) || existsSync(path.join(paths().sdk, 'platform-tools', exe('adb')))),
 };
 
 // Returns the tools still missing after trying. Never throws: scrcpy is optional

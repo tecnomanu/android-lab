@@ -73,7 +73,10 @@ export default async function doctor() {
   }
 
   if (!accel.ok && isLinux) say(`\n  ${c.yellow('fix KVM:')} sudo usermod -aG kvm $USER && newgrp kvm`);
-  if (!bind.ok && isLinux) say(`  ${c.yellow('fix binder:')} sudo modprobe binder_linux devices=binder,hwbinder,vndbinder`);
+  if (!bind.ok && isLinux && bind.fix) {
+    say(`  ${c.yellow('fix binder:')}`);
+    for (const cmd of bind.fix) say(`    ${c.dim(cmd)}`);
+  }
   if (!bind.ok && !isLinux) {
     say(`\n  ${c.dim(`redroid does not exist on ${osName}: Docker Desktop runs a LinuxKit kernel with no binder.`)}`);
     say(`  ${c.dim('It is not a permissions or flags problem — the subsystem is not compiled in.')}`);

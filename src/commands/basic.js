@@ -10,18 +10,24 @@ import * as redroid from '../backends/redroid.js';
 
 const BACKENDS = { emulator, redroid };
 import { listInstances } from '../state.js';
-import { askSetupOptions, ensureTools } from './wizard.js';
+import { askSetupOptions, ensureTools, installHint } from './wizard.js';
 
 export async function setup(be, args) {
   const yes = Boolean(args.yes || args.y);
   const opts = await askSetupOptions({ yes });
   configure({ name: args.name || opts.name, api: opts.api });
 
-  // Missing tools are handled before the long download, so nobody waits five
-  // minutes only to fail on a missing JDK at the end.
-  const missing = await ensureTools({ yes });
-  if (missing.includes('java')) {
-    throw new Error('java is still missing, and sdkmanager cannot run without it. Install it and run setup again.');
+  // Only what this backend actually needs: redroid has no SDK and no java, it
+  // just needs an adb on the host to reach the container. Handled before the long
+  // download, so nobody waits five minutes to fail on a missing tool at the end.
+  const needed = be.requires ?? [];
+  const missing = await ensureTools({ yes, want: [...needed, 'scrcpy'] });
+  const blocking = needed.filter((t) => missing.includes(t));
+  if (blocking.length) {
+    throw new Error(
+      `the ${be.name} backend needs ${blocking.join(' and ')}, still missing.\n` +
+      blocking.map((t) => `    ${installHint(t) || t}`).join('\n') +
+      '\n  Install and run setup again.');
   }
 
   step(`installing the ${c.bold(be.name)} backend into ${paths().home}`);

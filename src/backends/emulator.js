@@ -9,6 +9,8 @@ import { getInstance, listInstances, removeInstance, setInstance } from '../stat
 import { c, say, spinner, step, warn } from '../log.js';
 
 export const name = 'emulator';
+// sdkmanager and avdmanager are java wrappers; adb arrives with platform-tools.
+export const requires = ['java'];
 
 const emuBin = () => path.join(paths().sdk, 'emulator', exe('emulator'));
 const sdkTool = (n) => path.join(paths().sdk, 'cmdline-tools', 'latest', 'bin', bat(n));

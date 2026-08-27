@@ -9,6 +9,9 @@ import { getInstance, listInstances, removeInstance, setInstance } from '../stat
 import { say, spinner, step } from '../log.js';
 
 export const name = 'redroid';
+// No SDK and no java here: the container is the whole system. But the host still
+// needs adb, because the only way in is `adb connect` over TCP.
+export const requires = ['adb'];
 
 const docker = (args, opts) => run(exe('docker'), args, opts);
 const dataDir = () => `${paths().redroidData}/${cfg.name}`;
