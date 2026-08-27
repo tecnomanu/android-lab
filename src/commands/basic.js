@@ -146,8 +146,18 @@ export async function adbCmd(be, args) {
 
 export async function logs(be, args) {
   if (be.name === 'redroid') {
-    process.exit(await passthrough(exe('docker'),
-      [...(args.follow ? ['logs', '-f'] : ['logs']), cfg.name]));
+    // Android logs to logcat, not to stdout, so `docker logs` on a healthy
+    // container is empty. It is only worth showing when the container failed to
+    // come up, which is exactly when it has something in it.
+    const dl = run(exe('docker'), ['logs', '--tail', '50', cfg.name]);
+    if (dl.ok && dl.out.trim()) {
+      process.exit(await passthrough(exe('docker'),
+        [...(args.follow ? ['logs', '-f'] : ['logs']), cfg.name]));
+    }
+    if (!be.running()) return warn(`${cfg.name} is not running and its container logged nothing.`);
+    say(c.dim('the container logs nothing to stdout; showing logcat instead\n'));
+    process.exit(await adbInteractive(be.serial(),
+      args.follow ? ['logcat'] : ['logcat', '-d', '-t', '200']));
   }
   const f = be.info().logFile;
   if (!existsSync(f)) return warn(`no log at ${f} yet`);

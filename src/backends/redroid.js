@@ -110,15 +110,40 @@ export async function stop() {
   return docker(['stop', cfg.name], { timeout: 60000 }).ok;
 }
 
+// Android runs as root inside the container and fills the bind mount with
+// root-owned directories, so a normal host user gets EACCES trying to delete
+// them. A throwaway root container can do what we cannot.
+const HELPER_IMAGE = process.env.REDROID_HELPER_IMAGE || 'busybox:latest';
+
+function purgeDataDir() {
+  const dir = dataDir();
+  try {
+    rmSync(dir, { recursive: true, force: true });
+    return;
+  } catch (e) {
+    if (e.code !== 'EACCES' && e.code !== 'EPERM') throw e;
+  }
+
+  const r = docker(['run', '--rm', '-v', `${dir}:/data`, HELPER_IMAGE,
+    'sh', '-c', 'rm -rf /data/* /data/.[!.]* 2>/dev/null; true'], { timeout: 600000 });
+  if (!r.ok) {
+    throw new Error(
+      `could not delete ${dir}: Android left root-owned files there.\n` +
+      `  Docker could not clear them either (${(r.out || '').slice(-160)}).\n` +
+      `  Remove it by hand:  sudo rm -rf ${dir}`);
+  }
+  rmSync(dir, { recursive: true, force: true });
+}
+
 // Factory reset: the container is disposable, the state lives in the volume.
 export function wipe() {
-  rmSync(dataDir(), { recursive: true, force: true });
+  purgeDataDir();
   mkdirSync(dataDir(), { recursive: true });
 }
 
 export function destroy() {
   docker(['rm', '-f', cfg.name], { timeout: 60000 });
-  rmSync(dataDir(), { recursive: true, force: true });
+  purgeDataDir();
   removeInstance(cfg.name);
 }
 
