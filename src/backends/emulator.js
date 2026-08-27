@@ -1,10 +1,10 @@
 // Native Android Emulator backend. The only one that runs on all three systems:
 // it uses Hypervisor.framework (macOS), KVM (Linux) or WHPX (Windows).
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { adb, adbOn, devices, shell, waitForBoot } from '../adb.js';
-import { ANDROID_ABI, bat, cfg, exe, findJavaHome, hasAccel, isWin, osName, paths, run } from '../platform.js';
+import { ANDROID_ABI, bat, cfg, exe, findJavaHome, hasAccel, isMac, isWin, osName, paths, run, which } from '../platform.js';
 import { getInstance, listInstances, removeInstance, setInstance } from '../state.js';
 import { c, say, spinner, step, warn } from '../log.js';
 
@@ -99,15 +99,16 @@ export async function setup({ log = step } = {}) {
       '\n  If you already have one, point JAVA_HOME at it.');
   }
 
+  if (!existsSync(sdkTool('sdkmanager'))) {
+    log('fetching the Android command-line tools');
+    await fetchCmdlineTools();
+  }
   const clt = sdkTool('sdkmanager');
   if (!existsSync(clt)) {
     throw new Error(
-      `Android command-line tools are missing from ${path.join(paths().sdk, 'cmdline-tools', 'latest')}.\n` +
-      '  Download them from https://developer.android.com/studio#command-line-tools-only and unzip them there,\n' +
-      '  or install them with your package manager:\n' +
-      (osName === 'macOS' ? '    brew install --cask android-commandlinetools' :
-       osName === 'Linux' ? '    sudo apt install android-sdk   (or unzip the archive by hand)' :
-       '    winget install Google.AndroidStudio   (or unzip the archive by hand)'));
+      `Android command-line tools are still missing from ${path.join(paths().sdk, 'cmdline-tools', 'latest')}.\n` +
+      '  Download them by hand from https://developer.android.com/studio#command-line-tools-only\n' +
+      `  and unzip so that ${path.join(paths().sdk, 'cmdline-tools', 'latest', 'bin')} exists.`);
   }
 
   log('accepting SDK licences');
@@ -133,6 +134,58 @@ export async function setup({ log = step } = {}) {
   const ini = path.join(avdDir(), 'config.ini');
   if (!existsSync(ini)) throw new Error(`could not create the AVD: ${cr.out?.slice(-400)}`);
   tuneAvd(ini);
+}
+
+// No distro packages these usefully -- Ubuntu's android-sdk does not ship
+// cmdline-tools/latest, and Homebrew's cask is macOS only -- so we fetch the zip
+// Google publishes. Pin a different build with CMDLINE_TOOLS_URL.
+const CMDLINE_TOOLS_BUILD = process.env.CMDLINE_TOOLS_BUILD || '11076708';
+const cmdlineToolsUrl = () => {
+  if (process.env.CMDLINE_TOOLS_URL) return process.env.CMDLINE_TOOLS_URL;
+  const os = isMac ? 'mac' : isWin ? 'win' : 'linux';
+  return `https://dl.google.com/android/repository/commandlinetools-${os}-${CMDLINE_TOOLS_BUILD}_latest.zip`;
+};
+
+async function fetchCmdlineTools() {
+  const url = cmdlineToolsUrl();
+  const tmp = path.join(paths().sdk, `cmdline-tools-${CMDLINE_TOOLS_BUILD}.zip`);
+  const stage = path.join(paths().sdk, 'cmdline-tools-stage');
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`could not download the command-line tools (${res.status}) from ${url}`);
+  writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+
+  rmSync(stage, { recursive: true, force: true });
+  mkdirSync(stage, { recursive: true });
+  if (!unzip(tmp, stage)) {
+    rmSync(tmp, { force: true });
+    throw new Error(
+      'downloaded the command-line tools but could not unzip them.\n' +
+      (isWin ? '  Install PowerShell 5+ or unzip the archive by hand.'
+             : '  Install `unzip` (sudo apt install -y unzip) and run setup again.'));
+  }
+
+  // The archive expands to cmdline-tools/, but sdkmanager insists on living in a
+  // versioned directory -- "latest" is the convention it accepts.
+  const dest = path.join(paths().sdk, 'cmdline-tools', 'latest');
+  mkdirSync(path.dirname(dest), { recursive: true });
+  rmSync(dest, { recursive: true, force: true });
+  renameSync(path.join(stage, 'cmdline-tools'), dest);
+  rmSync(stage, { recursive: true, force: true });
+  rmSync(tmp, { force: true });
+}
+
+// No zip support in Node, so borrow whatever the host has. bsdtar (macOS `tar`)
+// reads zips; GNU tar does not, which is why `unzip` comes first on Linux.
+function unzip(zip, dest) {
+  const attempts = isWin
+    ? [['powershell', ['-NoProfile', '-Command', `Expand-Archive -LiteralPath '${zip}' -DestinationPath '${dest}' -Force`]]]
+    : [['unzip', ['-q', '-o', zip, '-d', dest]], ['tar', ['-xf', zip, '-C', dest]]];
+  for (const [bin, args] of attempts) {
+    if (!isWin && !which(bin)) continue;
+    if (run(bin, args, { timeout: 300000 }).ok) return true;
+  }
+  return false;
 }
 
 // Only the settings that actually matter; everything else keeps the AVD default.
