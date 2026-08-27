@@ -13,28 +13,42 @@ import {
 // What each tool is called for the package manager of each platform. Anything
 // that needs root is printed rather than run: silently sudo-ing on someone's
 // machine is not this tool's business.
+// How each tool is installed per platform, as a list of commands. Anything
+// needing root is only run when root is already granted (see rootIsFree).
+//
+// apt gets an `update` first: on a machine whose package index is stale, `apt
+// install` fails with a 404 on a .deb that no longer exists on the mirror, which
+// reads as "the package is gone" rather than "your index is old".
 const RECIPES = {
   java: {
-    macOS: { cmd: ['brew', 'install', 'openjdk@17'], root: false },
-    Linux: { cmd: ['sudo', 'apt', 'install', '-y', 'openjdk-17-jdk'], root: true },
-    Windows: { cmd: ['winget', 'install', '-e', '--id', 'EclipseAdoptium.Temurin.17.JDK'], root: false },
+    macOS: { cmds: [['brew', 'install', 'openjdk@17']], root: false },
+    Linux: { cmds: [['apt-get', 'update'], ['apt-get', 'install', '-y', 'openjdk-17-jdk']], root: true },
+    Windows: { cmds: [['winget', 'install', '-e', '--id', 'EclipseAdoptium.Temurin.17.JDK']], root: false },
   },
   scrcpy: {
-    macOS: { cmd: ['brew', 'install', 'scrcpy'], root: false },
-    Linux: { cmd: ['sudo', 'apt', 'install', '-y', 'scrcpy'], root: true },
-    Windows: { cmd: ['winget', 'install', '-e', '--id', 'Genymobile.scrcpy'], root: false },
+    macOS: { cmds: [['brew', 'install', 'scrcpy']], root: false },
+    Linux: { cmds: [['apt-get', 'update'], ['apt-get', 'install', '-y', 'scrcpy']], root: true },
+    Windows: { cmds: [['winget', 'install', '-e', '--id', 'Genymobile.scrcpy']], root: false },
   },
   adb: {
-    macOS: { cmd: ['brew', 'install', '--cask', 'android-platform-tools'], root: false },
-    Linux: { cmd: ['sudo', 'apt', 'install', '-y', 'adb'], root: true },
-    Windows: { cmd: ['winget', 'install', '-e', '--id', 'Google.PlatformTools'], root: false },
+    macOS: { cmds: [['brew', 'install', '--cask', 'android-platform-tools']], root: false },
+    Linux: { cmds: [['apt-get', 'update'], ['apt-get', 'install', '-y', 'adb']], root: true },
+    Windows: { cmds: [['winget', 'install', '-e', '--id', 'Google.PlatformTools']], root: false },
   },
 };
+
+// Root commands are prefixed with sudo unless we already are root.
+const asRoot = (cmd) =>
+  (typeof process.getuid === 'function' && process.getuid() === 0) ? cmd : ['sudo', ...cmd];
+
+const printableFor = (recipe) =>
+  recipe.cmds.map((c) => (recipe.root ? asRoot(c) : c).join(' ')).join(' && ');
 
 // The install command for this platform, so hints never tell a Linux user to run
 // brew. Returns null when we have no recipe for the host.
 export function installHint(tool) {
-  return RECIPES[tool]?.[osName]?.cmd.join(' ') ?? null;
+  const recipe = RECIPES[tool]?.[osName];
+  return recipe ? printableFor(recipe) : null;
 }
 
 const present = {
@@ -64,7 +78,7 @@ export async function ensureTools({ yes = false, want = ['java', 'scrcpy'] } = {
       stillMissing.push(tool);
       continue;
     }
-    const printable = recipe.cmd.join(' ');
+    const printable = printableFor(recipe);
 
     // Needs root. Running it is only acceptable when root is already granted --
     // we are root, or sudo takes no password. Anywhere else it gets printed,
@@ -75,8 +89,9 @@ export async function ensureTools({ yes = false, want = ['java', 'scrcpy'] } = {
       stillMissing.push(tool);
       continue;
     }
-    if (!which(exe(recipe.cmd[0]))) {
-      warn(`${tool} is missing and so is ${recipe.cmd[0]}. Install it with:\n    ${printable}`);
+    const launcher = recipe.cmds[0][0];
+    if (!recipe.root && !which(exe(launcher))) {
+      warn(`${tool} is missing and so is ${launcher}. Install it with:\n    ${printable}`);
       stillMissing.push(tool);
       continue;
     }
@@ -86,9 +101,13 @@ export async function ensureTools({ yes = false, want = ['java', 'scrcpy'] } = {
       continue;
     }
     step(printable);
-    const r = run(recipe.cmd[0], recipe.cmd.slice(1),
-      { timeout: 900000, stdio: ['ignore', 'inherit', 'inherit'] });
-    if (r.ok && present[tool]()) ok(`${tool} installed`);
+    let failed = false;
+    for (const cmd of recipe.cmds) {
+      const [bin, ...rest] = recipe.root ? asRoot(cmd) : cmd;
+      const r = run(bin, rest, { timeout: 900000, stdio: ['ignore', 'inherit', 'inherit'] });
+      if (!r.ok) { failed = true; break; }
+    }
+    if (!failed && present[tool]()) ok(`${tool} installed`);
     else { warn(`could not install ${tool}. Try by hand:\n    ${printable}`); stillMissing.push(tool); }
   }
   return stillMissing;
